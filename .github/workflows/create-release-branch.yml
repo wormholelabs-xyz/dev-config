@@ -1,0 +1,167 @@
+name: Create Release Branch & RC
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_version:
+        description: "Target release version (e.g., 1.2.0)"
+        required: true
+        type: string
+      source_tag:
+        description: "Source tag/commit (e.g., v1.0.0-development.5) - leave empty to auto-select latest"
+        required: false
+        type: string
+      recent_tag_selection:
+        description: "Source selection method"
+        required: false
+        type: choice
+        options:
+          - "Use custom tag/commit above"
+          - "Auto-select latest development release"
+        default: "Auto-select latest development release"
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  fetch-development-releases:
+    name: Fetch Recent Development Releases
+    runs-on: ubuntu-latest
+    if: github.event.inputs.recent_tag_selection == 'Auto-select latest development release'
+    outputs:
+      development_tags: ${{ steps.get-tags.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get Recent Development Tags
+        id: get-tags
+        run: |
+          echo "🔍 Fetching recent development releases..."
+
+          # Get all tags, filter for development releases, sort by version, take latest 10
+          TAGS=$(git tag -l | grep -E '.*-development\.[0-9]+$' | sort -V | tail -10 | tac)
+
+          if [ -z "$TAGS" ]; then
+            echo "❌ No development releases found"
+            echo "tags=" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "📋 Found development releases:"
+          echo "$TAGS"
+
+          # Convert to JSON array for workflow dispatch
+          JSON_TAGS=$(echo "$TAGS" | jq -R -s -c 'split("\n")[:-1]')
+          echo "tags=$JSON_TAGS" >> $GITHUB_OUTPUT
+
+  select-tag-and-create-branch:
+    name: Create Release Branch from Selected Tag
+    runs-on: ubuntu-latest
+    needs: [fetch-development-releases]
+    if: always() && !failure()
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine Source Reference
+        id: determine-source
+        run: |
+          TARGET_VERSION="${{ github.event.inputs.target_version }}"
+          CUSTOM_TAG="${{ github.event.inputs.source_tag }}"
+          SELECTION_MODE="${{ github.event.inputs.recent_tag_selection }}"
+
+          # Validate target version format
+          if ! echo "$TARGET_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "❌ Invalid version format. Use semantic versioning (e.g., 1.2.0)"
+            exit 1
+          fi
+
+          echo "target_version=$TARGET_VERSION" >> $GITHUB_OUTPUT
+          echo "release_branch=release/$TARGET_VERSION" >> $GITHUB_OUTPUT
+
+          if [[ "$SELECTION_MODE" == "Use custom tag/commit above" && -n "$CUSTOM_TAG" ]]; then
+            # Use custom tag/commit
+            echo "🎯 Using custom reference: $CUSTOM_TAG"
+            
+            # Verify the reference exists
+            if ! git rev-parse --verify "$CUSTOM_TAG" >/dev/null 2>&1; then
+              echo "❌ Reference '$CUSTOM_TAG' not found"
+              exit 1
+            fi
+            
+            echo "source_ref=$CUSTOM_TAG" >> $GITHUB_OUTPUT
+          else
+            # Use latest development release
+            echo "🔍 Finding latest development release..."
+            LATEST_DEV=$(git tag -l | grep -E '.*-development\.[0-9]+$' | sort -V | tail -1)
+            
+            if [ -z "$LATEST_DEV" ]; then
+              echo "❌ No development releases found"
+              exit 1
+            fi
+            
+            echo "🎯 Using latest development release: $LATEST_DEV"
+            echo "source_ref=$LATEST_DEV" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release Branch
+        id: create-branch
+        run: |
+          SOURCE_REF="${{ steps.determine-source.outputs.source_ref }}"
+          RELEASE_BRANCH="${{ steps.determine-source.outputs.release_branch }}"
+
+          echo "🌿 Creating release branch: $RELEASE_BRANCH from $SOURCE_REF"
+
+          # Check if branch already exists
+          if git ls-remote --heads origin "$RELEASE_BRANCH" | grep -q "$RELEASE_BRANCH"; then
+            echo "❌ Release branch $RELEASE_BRANCH already exists"
+            echo "🔍 You can either:"
+            echo "   - Delete the existing branch first"
+            echo "   - Use a different target version"
+            exit 1
+          fi
+
+          # Create and push the branch
+          git checkout -b "$RELEASE_BRANCH" "$SOURCE_REF"
+          git push origin "$RELEASE_BRANCH"
+
+          echo "✅ Successfully created and pushed $RELEASE_BRANCH"
+          echo "branch_created=true" >> $GITHUB_OUTPUT
+
+      - name: Create Summary
+        run: |
+          SOURCE_REF="${{ steps.determine-source.outputs.source_ref }}"
+          RELEASE_BRANCH="${{ steps.determine-source.outputs.release_branch }}"
+          TARGET_VERSION="${{ steps.determine-source.outputs.target_version }}"
+
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## 🎉 Release Branch Created Successfully
+
+          ### Branch Details
+          - **Release Branch**: \`$RELEASE_BRANCH\`
+          - **Source Reference**: \`$SOURCE_REF\`
+          - **Target Version**: \`$TARGET_VERSION\`
+
+          ### Next Steps
+          1. ✅ Release branch has been created and pushed
+          2. 🚀 **Release Candidate workflow will automatically trigger**
+          3. 📦 RC will be published to npm with \`@rc\` tag
+          4. 🧪 Test the RC: \`npm install @wormhole-labs/dev-config@rc\`
+          5. 🔄 When ready, merge release branch to main for final release
+
+          ### Automatic Actions
+          - The **Production Release** workflow will trigger automatically when the branch is pushed
+          - This will create a Release Candidate (\`$TARGET_VERSION-rc.1\`)
+          - **No approvals needed** for RC creation
+          - RC will be available at: \`@wormhole-labs/dev-config@rc\`
+
+          ### Manual Actions Required Later
+          - **2 developer approvals** will be required when merging to main for final stable release
+          EOF

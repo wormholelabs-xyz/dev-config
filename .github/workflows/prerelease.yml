@@ -95,7 +95,7 @@ jobs:
             "branches": [
               {
                 "name": "main",
-                "prerelease": "alpha"
+                "prerelease": "development"
               }
             ],
             "plugins": [

@@ -2,7 +2,7 @@ name: Production Release
 
 on:
   push:
-    branches: [release/*, hotfix/*]
+    branches: [release/*]
   workflow_dispatch:
     inputs:
       release_type:
@@ -11,7 +11,7 @@ on:
         type: choice
         options:
           - release
-          - hotfix
+          - final
         default: "release"
 
 permissions:
@@ -37,8 +37,8 @@ jobs:
       - name: Validate branch
         if: github.event_name == 'push'
         run: |
-          if [[ ! "${{ github.ref }}" =~ ^refs/heads/(release|hotfix)/ ]]; then
-            echo "❌ Production releases only allowed from release/* or hotfix/* branches"
+          if [[ ! "${{ github.ref }}" =~ ^refs/heads/release/ ]]; then
+            echo "❌ Production releases only allowed from release/* branches"
             exit 1
           fi
 
@@ -64,16 +64,52 @@ jobs:
           path: audit-logs/
           retention-days: 90
 
-  release:
+  determine-release-type:
     needs: security-check
-    name: Create Production Release
+    name: Determine Release Type
     runs-on: ubuntu-latest
-    environment: production # Requires 2 approvals
+    outputs:
+      is_stable_release: ${{ steps.check-type.outputs.is_stable_release }}
+      branch_name: ${{ steps.check-type.outputs.branch_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine if this is a stable release
+        id: check-type
+        run: |
+          BRANCH_NAME="${{ github.ref_name }}"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+          # Check if this branch has been merged to main (indicating final release)
+          # For now, we'll consider it a stable release if triggered from main or manually dispatched with specific intent
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.release_type }}" == "final" ]]; then
+            echo "🎯 Final stable release requested via manual dispatch"
+            echo "is_stable_release=true" >> $GITHUB_OUTPUT
+          elif git merge-base --is-ancestor "${{ github.sha }}" origin/main 2>/dev/null; then
+            echo "🎯 Commit is on main branch - this is a final stable release"
+            echo "is_stable_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "🚀 This is a Release Candidate creation"
+            echo "is_stable_release=false" >> $GITHUB_OUTPUT
+          fi
+
+  release-candidate:
+    needs: [security-check, determine-release-type]
+    name: Create Release Candidate
+    runs-on: ubuntu-latest
+    if: needs.determine-release-type.outputs.is_stable_release == 'false'
     outputs:
       release_created: ${{ steps.release.outputs.new_release_published }}
       tag_name: ${{ steps.release.outputs.new_release_git_tag }}
       version: ${{ steps.release.outputs.new_release_version }}
     steps:
+      - name: RC Creation Notice
+        run: |
+          echo "🚀 Creating Release Candidate - No approvals required"
+          echo "📦 This will create an RC version for testing"
+          echo "🔒 Final stable release will require 2 approvals"
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -100,7 +136,7 @@ jobs:
       - name: Audit signatures
         run: npm audit signatures
 
-      - name: Create Production Release
+      - name: Create Release Candidate
         id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -108,22 +144,189 @@ jobs:
           NPM_CONFIG_PROVENANCE: true
         run: npx semantic-release
 
-  security-audit:
-    name: Post-Release Security Audit
-    needs: release
-    if: needs.release.outputs.release_created
+  stable-release:
+    needs: [security-check, determine-release-type]
+    name: Create Final Stable Release
     runs-on: ubuntu-latest
+    environment: production # Requires 2 approvals
+    if: needs.determine-release-type.outputs.is_stable_release == 'true'
+    outputs:
+      release_created: ${{ steps.release.outputs.new_release_published }}
+      tag_name: ${{ steps.release.outputs.new_release_git_tag }}
+      version: ${{ steps.release.outputs.new_release_version }}
     steps:
+      - name: Stable Release Notice
+        run: |
+          echo "🔒 Creating Final Stable Release - 2 approvals required"
+          echo "📦 This will create the final production release"
+          echo "✅ Approvals completed - proceeding with release"
+
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release.outputs.tag_name }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build package
+        run: pnpm build
+
+      - name: Audit signatures
+        run: npm audit signatures
+
+      - name: Create Final Stable Release
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: |
+          # Create stable release configuration
+          cat > .releaserc.stable.json << EOF
+          {
+            "branches": [
+              {
+                "name": "${{ github.ref_name }}",
+                "prerelease": false
+              }
+            ],
+            "plugins": [
+              "@semantic-release/commit-analyzer",
+              "@semantic-release/release-notes-generator",
+              [
+                "@semantic-release/changelog",
+                {
+                  "changelogFile": "CHANGELOG.md"
+                }
+              ],
+              [
+                "@semantic-release/npm",
+                {
+                  "npmPublish": true,
+                  "tarballDir": "dist"
+                }
+              ],
+              [
+                "@semantic-release/github",
+                {
+                  "assets": [
+                    {
+                      "path": "dist/*.tgz",
+                      "label": "Package tarball"
+                    }
+                  ],
+                  "addReleases": "bottom"
+                }
+              ],
+              [
+                "@semantic-release/git",
+                {
+                  "assets": [
+                    "CHANGELOG.md"
+                  ],
+                  "message": "chore(release): \${nextRelease.version} [skip ci]\\n\\n\${nextRelease.notes}"
+                }
+              ]
+            ]
+          }
+          EOF
+
+          # Run semantic-release with stable config
+          npx semantic-release --extends .releaserc.stable.json
+
+      - name: Create PR to merge changelog to main
+        if: steps.release.outputs.new_release_published == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branchName = '${{ github.ref_name }}';
+            const version = '${{ steps.release.outputs.new_release_version }}';
+
+            try {
+              // Create PR to merge changelog back to main
+              const pr = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `chore: merge changelog for v${version} to main`,
+                head: branchName,
+                base: 'main',
+                body: `## 📝 Changelog Update for v${version}
+
+            This PR merges the updated CHANGELOG.md from the stable release back to the main branch.
+
+            ### What's included:
+            - ✅ Updated CHANGELOG.md with release notes for v${version}
+            - ✅ No other changes - changelog only
+
+            ### Release Details:
+            - **Version**: v${version}
+            - **Release Branch**: ${branchName}
+            - **Release Type**: Stable Release
+
+            This PR is automatically created after a successful stable release to ensure the main branch stays up-to-date with release history.
+
+            🤖 Generated automatically by semantic-release workflow.`,
+                draft: false
+              });
+              
+              console.log(`✅ Created PR #${pr.data.number}: ${pr.data.html_url}`);
+              
+              // Add labels to the PR
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.data.number,
+                labels: ['changelog', 'automated', 'release']
+              });
+              
+            } catch (error) {
+              console.error('❌ Failed to create PR:', error.message);
+              // Don't fail the workflow if PR creation fails
+            }
+
+  security-audit:
+    name: Post-Release Security Audit
+    needs: [release-candidate, stable-release]
+    if: always() && (needs.release-candidate.outputs.release_created == 'true' || needs.stable-release.outputs.release_created == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine Release Output
+        id: release-info
+        run: |
+          if [[ "${{ needs.release-candidate.outputs.release_created }}" == "true" ]]; then
+            echo "tag_name=${{ needs.release-candidate.outputs.tag_name }}" >> $GITHUB_OUTPUT
+            echo "version=${{ needs.release-candidate.outputs.version }}" >> $GITHUB_OUTPUT
+            echo "release_type=Release Candidate" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.stable-release.outputs.release_created }}" == "true" ]]; then
+            echo "tag_name=${{ needs.stable-release.outputs.tag_name }}" >> $GITHUB_OUTPUT
+            echo "version=${{ needs.stable-release.outputs.version }}" >> $GITHUB_OUTPUT
+            echo "release_type=Stable Release" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release-info.outputs.tag_name }}
 
       - name: Audit Release
         run: |
-          echo "📝 Production Release Audit Log"
+          echo "📝 ${{ steps.release-info.outputs.release_type }} Audit Log"
           echo "=============================="
-          echo "Release Tag: ${{ needs.release.outputs.tag_name }}"
-          echo "Version: ${{ needs.release.outputs.version }}"
+          echo "Release Tag: ${{ steps.release-info.outputs.tag_name }}"
+          echo "Version: ${{ steps.release-info.outputs.version }}"
+          echo "Release Type: ${{ steps.release-info.outputs.release_type }}"
           echo "Released by: ${{ github.actor }}"
           echo "Release Time: $(date -u)"
           echo "Commit SHA: ${{ github.sha }}"
@@ -132,4 +335,4 @@ jobs:
       - name: Verify NPM Package
         run: |
           sleep 30
-          npm view @wormhole-labs/dev-config@${{ needs.release.outputs.version }} version
+          npm view @wormhole-labs/dev-config@${{ steps.release-info.outputs.version }} version
