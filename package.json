@@ -1,0 +1,89 @@
+{
+  "name": "@wormhole-labs/dev-config",
+  "version": "0.0.0-development",
+  "description": "Shared development configuration and tooling for Wormhole Labs projects",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./commitlint": "./config/commitlint.config.mjs",
+    "./prettier": "./config/prettier.config.js",
+    "./eslint": "./config/eslint.config.js",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "prepare": "husky",
+    "build": "tsc",
+    "prebuild": "rm -rf dist",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "validate": "npm run lint && npm run format:check",
+    "release": "semantic-release",
+    "release:dry": "semantic-release --dry-run"
+  },
+  "keywords": [
+    "wormhole",
+    "dev-config",
+    "commitlint",
+    "prettier",
+    "eslint",
+    "release-automation"
+  ],
+  "author": "Wormhole Labs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wormholelabs-xyz/dev-config.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wormholelabs-xyz/dev-config/issues"
+  },
+  "homepage": "https://github.com/wormholelabs-xyz/dev-config#readme",
+  "files": [
+    "dist",
+    "config",
+    "README.md",
+    "LICENSE"
+  ],
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.0",
+    "@commitlint/config-conventional": "^19.6.0",
+    "@eslint/js": "^9.17.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.3",
+    "@semantic-release/npm": "^12.0.2",
+    "@types/node": "^22.10.5",
+    "@typescript-eslint/eslint-plugin": "^8.20.0",
+    "@typescript-eslint/parser": "^8.20.0",
+    "commitizen": "^4.3.1",
+    "cz-conventional-changelog": "^3.3.0",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.2",
+    "husky": "^9.1.7",
+    "prettier": "^3.4.2",
+    "semantic-release": "^24.2.6",
+    "typescript": "^5.7.3"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/",
+    "provenance": true
+  }
+}
