@@ -2,6 +2,10 @@
   "branches": [
     "main",
     {
+      "name": "feat/*",
+      "prerelease": "development"
+    },
+    {
       "name": "release/*",
       "prerelease": "rc"
     }
