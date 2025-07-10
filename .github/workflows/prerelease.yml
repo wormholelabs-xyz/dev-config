@@ -89,40 +89,6 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
         run: |
-          # Configure semantic-release for pre-releases
-          cat > .releaserc.prerelease.json << EOF
-          {
-            "branches": [
-              {
-                "name": "main",
-                "prerelease": "development"
-              }
-            ],
-            "plugins": [
-              "@semantic-release/commit-analyzer",
-              "@semantic-release/release-notes-generator",
-              [
-                "@semantic-release/npm",
-                {
-                  "npmPublish": true,
-                  "tarballDir": "dist"
-                }
-              ],
-              [
-                "@semantic-release/github",
-                {
-                  "assets": [
-                    {
-                      "path": "dist/*.tgz",
-                      "label": "Package tarball"
-                    }
-                  ]
-                }
-              ]
-            ]
-          }
-          EOF
-
           # Run semantic-release with pre-release config
           npx semantic-release --extends .releaserc.prerelease.json
 
