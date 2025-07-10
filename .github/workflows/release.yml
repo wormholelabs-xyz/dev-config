@@ -245,7 +245,7 @@ jobs:
           EOF
 
           # Run semantic-release with stable config
-          npx semantic-release --extends .releaserc.stable.json
+          SEMANTIC_RELEASE_CONFIG=.releaserc.stable.json npx semantic-release
 
       - name: Create PR to merge changelog to main
         if: steps.release.outputs.new_release_published == 'true'
