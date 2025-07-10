@@ -8,7 +8,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: write
   security-events: write
 
 jobs:
@@ -87,3 +87,100 @@ jobs:
         if: always()
         with:
           sarif_file: "trivy-results.sarif"
+
+  release-preview:
+    name: Release Preview
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Release Preview
+        id: release-preview
+        run: |
+          # Run semantic-release dry run and capture output
+          echo "## 📦 Release Preview" > release-preview.md
+          echo "" >> release-preview.md
+
+          # Capture semantic-release output
+          if npx semantic-release --dry-run --branches main > release-output.txt 2>&1; then
+            # Check if a release would be created
+            if grep -q "There are no relevant changes" release-output.txt; then
+              echo "🔍 **No release would be created**" >> release-preview.md
+              echo "" >> release-preview.md
+              echo "No significant changes detected that would trigger a release." >> release-preview.md
+            elif grep -q "The next release version is" release-output.txt; then
+              # Extract version from semantic-release output
+              VERSION=$(grep "The next release version is" release-output.txt | sed 's/.*The next release version is \([^ ]*\).*/\1/' || echo "unknown")
+              echo "🚀 **Version that would be released:** \`$VERSION\`" >> release-preview.md
+              echo "" >> release-preview.md
+              
+              # Look for release notes in output  
+              if grep -q "Release note" release-output.txt; then
+                echo "### 📝 Release Notes" >> release-preview.md
+                echo "" >> release-preview.md
+                echo "\`\`\`" >> release-preview.md
+                grep -A 20 "Release note" release-output.txt | head -20 >> release-preview.md
+                echo "\`\`\`" >> release-preview.md
+              fi
+            elif grep -q "no release" release-output.txt; then
+              echo "🔍 **No release would be created**" >> release-preview.md
+              echo "" >> release-preview.md
+              echo "No significant changes detected that would trigger a release." >> release-preview.md
+            else
+              echo "🔍 **Release analysis**" >> release-preview.md
+              echo "" >> release-preview.md
+              echo "\`\`\`" >> release-preview.md
+              cat release-output.txt >> release-preview.md
+              echo "\`\`\`" >> release-preview.md
+            fi
+          else
+            echo "❌ **Error generating release preview**" >> release-preview.md
+            echo "" >> release-preview.md
+            echo "\`\`\`" >> release-preview.md
+            cat release-output.txt >> release-preview.md
+            echo "\`\`\`" >> release-preview.md
+          fi
+
+          echo "" >> release-preview.md
+          echo "---" >> release-preview.md
+          echo "*This preview is automatically updated on each commit. The actual release will happen when this PR is merged to main.*" >> release-preview.md
+
+          # Set output for comment
+          {
+            echo 'preview<<EOF'
+            cat release-preview.md
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Find existing comment
+        uses: peter-evans/find-comment@v3
+        id: find-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: "github-actions[bot]"
+          body-includes: "📦 Release Preview"
+
+      - name: Create or update comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: ${{ steps.release-preview.outputs.preview }}
+          edit-mode: replace

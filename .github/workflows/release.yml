@@ -194,64 +194,12 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
         run: |
-          # Create stable release configuration
-          cat > .releaserc.stable.json << EOF
-          {
-            "branches": [
-              {
-                "name": "${{ github.ref_name }}",
-                "prerelease": false
-              }
-            ],
-            "plugins": [
-              "@semantic-release/commit-analyzer",
-              "@semantic-release/release-notes-generator",
-              [
-                "@semantic-release/changelog",
-                {
-                  "changelogFile": "CHANGELOG.md"
-                }
-              ],
-              [
-                "@semantic-release/npm",
-                {
-                  "npmPublish": true,
-                  "tarballDir": "dist"
-                }
-              ],
-              [
-                "@semantic-release/github",
-                {
-                  "assets": [
-                    {
-                      "path": "dist/*.tgz",
-                      "label": "Package tarball"
-                    }
-                  ],
-                  "addReleases": "bottom"
-                }
-              ],
-              [
-                "@semantic-release/git",
-                {
-                  "assets": [
-                    "CHANGELOG.md"
-                  ],
-                  "message": "chore(release): \${nextRelease.version} [skip ci]"
-                }
-              ]
-            ]
-          }
-          EOF
-
-      - name: Run semantic-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
-        run: |
-          # Run semantic-release with stable config
-          SEMANTIC_RELEASE_CONFIG=.releaserc.stable.json npx semantic-release
+          # Copy stable release config and customize branch name
+          cp .github/release-configs/releaserc.stable.json .releaserc.json
+          # Update branch name for current release branch
+          sed -i.bak "s/\"main\"/\"${{ github.ref_name }}\"/g" .releaserc.json
+          # Run semantic-release
+          npx semantic-release
 
       - name: Commit changelog via GitHub API
         if: success()
