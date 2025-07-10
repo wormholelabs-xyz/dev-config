@@ -244,8 +244,44 @@ jobs:
           }
           EOF
 
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: |
           # Run semantic-release with stable config
           SEMANTIC_RELEASE_CONFIG=.releaserc.stable.json npx semantic-release
+
+      - name: Commit changelog via GitHub API
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if CHANGELOG.md was created/updated
+          if [ -f CHANGELOG.md ]; then
+            # Get current file SHA (if it exists)
+            SHA=$(gh api repos/:owner/:repo/contents/CHANGELOG.md --jq .sha 2>/dev/null || echo "")
+            
+            # Get file content (base64 encoded)
+            CONTENT=$(base64 -w 0 CHANGELOG.md)
+            
+            # Prepare API call
+            if [ -n "$SHA" ]; then
+              # File exists, update it
+              gh api --method PUT repos/:owner/:repo/contents/CHANGELOG.md \
+                --field message="chore(release): update changelog [skip ci]" \
+                --field content="$CONTENT" \
+                --field branch="main" \
+                --field sha="$SHA"
+            else
+              # File doesn't exist, create it
+              gh api --method PUT repos/:owner/:repo/contents/CHANGELOG.md \
+                --field message="chore(release): add changelog [skip ci]" \
+                --field content="$CONTENT" \
+                --field branch="main"
+            fi
+          fi
 
       - name: Create PR to merge changelog to main
         if: steps.release.outputs.new_release_published == 'true'
