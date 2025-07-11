@@ -123,16 +123,18 @@ jobs:
           BUMP=$(npx conventional-recommended-bump -p angular)
           echo "bump=$BUMP" >> $GITHUB_OUTPUT
 
-          # Get the latest tag version (what semantic-release would use as the base)
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [[ -n "$LATEST_TAG" ]]; then
+          # Get all relevant tag information in one pass
+          ALL_TAGS=$(git tag -l | sort -V)
+          LATEST_STABLE_TAG=$(echo "$ALL_TAGS" | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | tail -1)
+
+          if [[ -n "$LATEST_STABLE_TAG" ]]; then
             # Extract version number from tag (remove 'v' prefix if present)
-            CURRENT_VERSION=$(echo $LATEST_TAG | sed 's/^v//')
-            echo "Found latest tag: $LATEST_TAG, using version: $CURRENT_VERSION"
+            CURRENT_VERSION=$(echo $LATEST_STABLE_TAG | sed 's/^v//')
+            echo "Found latest stable tag: $LATEST_STABLE_TAG, using version: $CURRENT_VERSION"
           else
-            # No tags found, use package.json version
+            # No stable tags found, use package.json version
             CURRENT_VERSION=$(node -p "require('./package.json').version")
-            echo "No tags found, using package.json version: $CURRENT_VERSION"
+            echo "No stable tags found, using package.json version: $CURRENT_VERSION"
           fi
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
@@ -149,7 +151,18 @@ jobs:
 
           # Add prerelease suffix for development builds
           if [[ -n "$NEXT_VERSION" ]]; then
-            NEXT_VERSION="$NEXT_VERSION-development.1"
+            # Find existing development tags for this version from our cached tag list
+            EXISTING_DEV_TAGS=$(echo "$ALL_TAGS" | grep "^v\?${NEXT_VERSION}-development\." || true)
+            
+            if [[ -n "$EXISTING_DEV_TAGS" ]]; then
+              # Get the highest development number
+              HIGHEST_DEV=$(echo "$EXISTING_DEV_TAGS" | tail -1 | sed 's/.*development\.\([0-9]\+\).*/\1/' || echo "0")
+              NEXT_DEV_NUM=$((HIGHEST_DEV + 1))
+            else
+              NEXT_DEV_NUM=1
+            fi
+            
+            NEXT_VERSION="$NEXT_VERSION-development.$NEXT_DEV_NUM"
           fi
 
           echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT

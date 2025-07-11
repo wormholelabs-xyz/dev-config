@@ -1,10 +1,6 @@
 {
   "dryRun": true,
-  "branches": [
-    "release",
-    { "name": "rc/*", "prerelease": "rc" },
-    { "name": "main", "prerelease": "development" }
-  ],
+  "branches": ["release", { "name": "main", "prerelease": "development" }],
   "plugins": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
