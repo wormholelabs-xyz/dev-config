@@ -1,5 +1,4 @@
 {
-  "dryRun": true,
   "branches": [
     "release",
     { "name": "rc/*", "prerelease": "rc" },
