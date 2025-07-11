@@ -1,12 +1,9 @@
-name: Production Release
+name: Publish Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      commit_sha:
-        description: "Commit SHA from main branch to release (leave empty for latest main)"
-        required: false
-        type: string
+  push:
+    branches:
+      - release
 
 permissions:
   contents: write
@@ -22,8 +19,8 @@ jobs:
       - name: Validate workflow trigger
         run: |
           echo "🔒 Security Check: Validating workflow trigger"
-          if [[ "${{ github.event_name }}" != "workflow_dispatch" ]]; then
-            echo "❌ Only manual workflow dispatch allowed for production releases"
+          if [[ "${{ github.event_name }}" != "push" ]] || [[ "${{ github.ref }}" != "refs/heads/release" ]]; then
+            echo "❌ Only pushes to release branch allowed"
             exit 1
           fi
 
@@ -49,9 +46,9 @@ jobs:
           path: audit-logs/
           retention-days: 90
 
-  merge-and-release:
+  publish-release:
     needs: security-check
-    name: Merge to Release Branch and Create Release
+    name: Publish NPM Package
     runs-on: ubuntu-latest
     environment: production # Requires 2 approvals
     outputs:
@@ -63,46 +60,6 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Determine Source Commit
-        id: determine-commit
-        run: |
-          COMMIT_SHA="${{ github.event.inputs.commit_sha }}"
-
-          if [[ -n "$COMMIT_SHA" ]]; then
-            echo "🎯 Using specified commit: $COMMIT_SHA"
-            # Verify the commit exists
-            if ! git rev-parse --verify "$COMMIT_SHA" >/dev/null 2>&1; then
-              echo "❌ Commit '$COMMIT_SHA' not found"
-              exit 1
-            fi
-            SOURCE_COMMIT="$COMMIT_SHA"
-          else
-            echo "🔍 Using latest commit from main"
-            git fetch origin main
-            SOURCE_COMMIT=$(git rev-parse origin/main)
-          fi
-
-          echo "source_commit=$SOURCE_COMMIT" >> $GITHUB_OUTPUT
-          echo "✅ Source commit: $SOURCE_COMMIT"
-
-      - name: Create/Update Release Branch
-        run: |
-          SOURCE_COMMIT="${{ steps.determine-commit.outputs.source_commit }}"
-
-          # Check if release branch exists
-          if git ls-remote --heads origin release >/dev/null 2>&1; then
-            echo "🔄 Release branch exists, updating it"
-            git checkout release
-            git reset --hard "$SOURCE_COMMIT"
-          else
-            echo "🌿 Creating new release branch"
-            git checkout -b release "$SOURCE_COMMIT"
-          fi
-
-          # Force push to update release branch
-          git push origin release --force
-          echo "✅ Release branch updated with commit $SOURCE_COMMIT"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -125,67 +82,20 @@ jobs:
       - name: Audit signatures
         run: npm audit signatures
 
-      - name: Create Stable Release
+      - name: Create Production Release
         id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
         run: |
+          echo "🔒 Creating production release after approvals"
+          echo "📦 This will create version, tag, changelog, and publish to npm"
+
           # Copy stable release config that includes verified-git-commit for changelog commits
           cp .github/release-configs/releaserc.stable.json .releaserc.json
           # Run semantic-release - this will create changelog, commit it, tag, and publish
           npx semantic-release
-
-      - name: Create PR to merge changelog to main
-        if: steps.release.outputs.new_release_published == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const branchName = '${{ github.ref_name }}';
-            const version = '${{ steps.release.outputs.new_release_version }}';
-
-            try {
-              // Create PR to merge changelog back to main
-              const pr = await github.rest.pulls.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: `chore: merge changelog for v${version} to main`,
-                head: branchName,
-                base: 'main',
-                body: `## 📝 Changelog Update for v${version}
-
-            This PR merges the updated CHANGELOG.md from the stable release back to the main branch.
-
-            ### What's included:
-            - ✅ Updated CHANGELOG.md with release notes for v${version}
-            - ✅ No other changes - changelog only
-
-            ### Release Details:
-            - **Version**: v${version}
-            - **Release Branch**: ${branchName}
-            - **Release Type**: Stable Release
-
-            This PR is automatically created after a successful stable release to ensure the main branch stays up-to-date with release history.
-
-            🤖 Generated automatically by semantic-release workflow.`,
-                draft: false
-              });
-              
-              console.log(`✅ Created PR #${pr.data.number}: ${pr.data.html_url}`);
-              
-              // Add labels to the PR
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr.data.number,
-                labels: ['changelog', 'automated', 'release']
-              });
-              
-            } catch (error) {
-              console.error('❌ Failed to create PR:', error.message);
-              // Don't fail the workflow if PR creation fails
-            }
 
       - name: Create PR to merge changelog to main
         if: steps.release.outputs.new_release_published == 'true'
@@ -238,20 +148,20 @@ jobs:
 
   security-audit:
     name: Post-Release Security Audit
-    needs: [merge-and-release]
-    if: always() && needs.merge-and-release.outputs.release_created == 'true'
+    needs: [publish-release]
+    if: always() && needs.publish-release.outputs.release_created == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.merge-and-release.outputs.tag_name }}
+          ref: ${{ needs.publish-release.outputs.tag_name }}
 
       - name: Audit Release
         run: |
-          echo "📝 Stable Release Audit Log"
+          echo "📝 Production Release Audit Log"
           echo "=============================="
-          echo "Release Tag: ${{ needs.merge-and-release.outputs.tag_name }}"
-          echo "Version: ${{ needs.merge-and-release.outputs.version }}"
+          echo "Release Tag: ${{ needs.publish-release.outputs.tag_name }}"
+          echo "Version: ${{ needs.publish-release.outputs.version }}"
           echo "Released by: ${{ github.actor }}"
           echo "Release Time: $(date -u)"
           echo "Commit SHA: ${{ github.sha }}"
@@ -259,4 +169,4 @@ jobs:
       - name: Verify NPM Package
         run: |
           sleep 30
-          npm view @wormhole-labs/dev-config@${{ needs.merge-and-release.outputs.version }} version
+          npm view @wormhole-labs/dev-config@${{ needs.publish-release.outputs.version }} version
