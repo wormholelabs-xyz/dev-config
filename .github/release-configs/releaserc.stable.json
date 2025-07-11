@@ -1,18 +1,30 @@
 {
+  "dryRun": true,
   "branches": [
-    {
-      "name": "main",
-      "prerelease": "development"
-    }
+    "release",
+    { "name": "rc/*", "prerelease": "rc" },
+    { "name": "main", "prerelease": "development" }
   ],
   "plugins": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
     [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md"
+      }
+    ],
+    [
       "@semantic-release/npm",
       {
         "npmPublish": true,
         "tarballDir": "dist"
+      }
+    ],
+    [
+      "@semantic-release-extras/verified-git-commit",
+      {
+        "assets": ["CHANGELOG.md"]
       }
     ],
     [

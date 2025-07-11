@@ -89,8 +89,8 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
         run: |
-          # Run semantic-release with pre-release config
-          SEMANTIC_RELEASE_CONFIG=.releaserc.prerelease.json npx semantic-release
+          # Run semantic-release
+          npx semantic-release
 
       - name: Security Audit
         run: |

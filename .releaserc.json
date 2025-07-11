@@ -1,10 +1,9 @@
 {
+  "dryRun": true,
   "branches": [
-    "main",
-    {
-      "name": "release/*",
-      "prerelease": "rc"
-    }
+    "release",
+    { "name": "rc/*", "prerelease": "rc" },
+    { "name": "main", "prerelease": "development" }
   ],
   "plugins": [
     "@semantic-release/commit-analyzer",
