@@ -121,6 +121,7 @@ jobs:
         run: |
           # Get the recommended bump based on commits since main
           BUMP=$(npx conventional-recommended-bump -p angular)
+          echo "Recommended bump type: $BUMP"
           echo "bump=$BUMP" >> $GITHUB_OUTPUT
 
           # Get all relevant tag information in one pass
@@ -146,8 +147,11 @@ jobs:
           elif [[ "$BUMP" == "patch" ]]; then
             NEXT_VERSION=$(echo $CURRENT_VERSION | awk -F. '{print $1"."$2"."$3+1}')
           else
+            echo "No version bump detected (bump type: '$BUMP')"
             NEXT_VERSION=""
           fi
+
+          echo "Next version (before prerelease): $NEXT_VERSION"
 
           # Add prerelease suffix for development builds
           if [[ -n "$NEXT_VERSION" ]]; then
