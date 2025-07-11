@@ -111,51 +111,76 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install release tools
+        run: |
+          # Install the tools we need for version calculation and changelog generation
+          pnpm add -D conventional-recommended-bump conventional-changelog-cli conventional-changelog-angular
+
+      - name: Analyze commits
+        id: analyze
+        run: |
+          # Get the recommended bump based on commits since main
+          BUMP=$(npx conventional-recommended-bump -p angular)
+          echo "bump=$BUMP" >> $GITHUB_OUTPUT
+
+          # Get current version from package.json
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+          # Calculate next version
+          if [[ "$BUMP" == "major" ]]; then
+            NEXT_VERSION=$(echo $CURRENT_VERSION | awk -F. '{print $1+1".0.0"}')
+          elif [[ "$BUMP" == "minor" ]]; then  
+            NEXT_VERSION=$(echo $CURRENT_VERSION | awk -F. '{print $1"."$2+1".0"}')
+          elif [[ "$BUMP" == "patch" ]]; then
+            NEXT_VERSION=$(echo $CURRENT_VERSION | awk -F. '{print $1"."$2"."$3+1}')
+          else
+            NEXT_VERSION=""
+          fi
+
+          # Check if current version has prerelease suffix
+          if [[ "$CURRENT_VERSION" == *"-development"* ]]; then
+            # Extract base version and increment
+            BASE_VERSION=$(echo $CURRENT_VERSION | cut -d'-' -f1)
+            if [[ "$NEXT_VERSION" != "" ]]; then
+              NEXT_VERSION="$NEXT_VERSION-development.1"
+            fi
+          fi
+
+          echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate Release Notes
+        id: release-notes
+        run: |
+          # Generate release notes for unreleased changes
+          # Use -r 0 to include all commits since last release
+          npx conventional-changelog -p angular -r 0 -u | tail -n +2 > CHANGELOG_PREVIEW.md || echo "No changes" > CHANGELOG_PREVIEW.md
+
+          # If the file is empty or just has headers, generate from git log
+          if [ ! -s CHANGELOG_PREVIEW.md ] || [ "$(wc -l < CHANGELOG_PREVIEW.md)" -lt 3 ]; then
+            echo "### Commits" > CHANGELOG_PREVIEW.md
+            echo "" >> CHANGELOG_PREVIEW.md
+            git log origin/main..HEAD --pretty=format:"* %s (%h)" >> CHANGELOG_PREVIEW.md
+          fi
+
       - name: Generate Release Preview
         id: release-preview
         run: |
-          # Run semantic-release dry run and capture output
           echo "## 📦 Release Preview" > release-preview.md
           echo "" >> release-preview.md
 
-          # Capture semantic-release output
-          if npx semantic-release --dry-run --branches main > release-output.txt 2>&1; then
-            # Check if a release would be created
-            if grep -q "There are no relevant changes" release-output.txt; then
-              echo "🔍 **No release would be created**" >> release-preview.md
-              echo "" >> release-preview.md
-              echo "No significant changes detected that would trigger a release." >> release-preview.md
-            elif grep -q "The next release version is" release-output.txt; then
-              # Extract version from semantic-release output
-              VERSION=$(grep "The next release version is" release-output.txt | sed 's/.*The next release version is \([^ ]*\).*/\1/' || echo "unknown")
-              echo "🚀 **Version that would be released:** \`$VERSION\`" >> release-preview.md
-              echo "" >> release-preview.md
-              
-              # Look for release notes in output  
-              if grep -q "Release note" release-output.txt; then
-                echo "### 📝 Release Notes" >> release-preview.md
-                echo "" >> release-preview.md
-                echo "\`\`\`" >> release-preview.md
-                grep -A 20 "Release note" release-output.txt | head -20 >> release-preview.md
-                echo "\`\`\`" >> release-preview.md
-              fi
-            elif grep -q "no release" release-output.txt; then
-              echo "🔍 **No release would be created**" >> release-preview.md
-              echo "" >> release-preview.md
-              echo "No significant changes detected that would trigger a release." >> release-preview.md
-            else
-              echo "🔍 **Release analysis**" >> release-preview.md
-              echo "" >> release-preview.md
-              echo "\`\`\`" >> release-preview.md
-              cat release-output.txt >> release-preview.md
-              echo "\`\`\`" >> release-preview.md
-            fi
-          else
-            echo "❌ **Error generating release preview**" >> release-preview.md
+          if [[ -n "${{ steps.analyze.outputs.next_version }}" ]]; then
+            echo "🚀 **Version that would be released:** \`${{ steps.analyze.outputs.next_version }}\`" >> release-preview.md
             echo "" >> release-preview.md
-            echo "\`\`\`" >> release-preview.md
-            cat release-output.txt >> release-preview.md
-            echo "\`\`\`" >> release-preview.md
+            echo "📊 **Bump type:** ${{ steps.analyze.outputs.bump }}" >> release-preview.md
+            echo "" >> release-preview.md
+            echo "### 📝 Changes" >> release-preview.md
+            echo "" >> release-preview.md
+            cat CHANGELOG_PREVIEW.md >> release-preview.md
+          else
+            echo "🔍 **No release would be created**" >> release-preview.md
+            echo "" >> release-preview.md
+            echo "No significant changes detected that would trigger a release." >> release-preview.md
           fi
 
           echo "" >> release-preview.md
