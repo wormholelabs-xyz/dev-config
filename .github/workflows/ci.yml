@@ -157,15 +157,26 @@ jobs:
       - name: Generate Release Notes
         id: release-notes
         run: |
-          # Generate release notes for unreleased changes
-          # Use -r 0 to include all commits since last release
-          npx conventional-changelog -p angular -r 0 -u | tail -n +2 > CHANGELOG_PREVIEW.md || echo "No changes" > CHANGELOG_PREVIEW.md
+          # Generate release notes for unreleased changes only (since last tag)
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [[ -n "$LATEST_TAG" ]]; then
+            echo "Generating changelog since tag: $LATEST_TAG"
+            # Generate changelog since the last tag
+            npx conventional-changelog -p angular --commit-path . --tag-prefix "v" --pkg '{"version":"'$LATEST_TAG'"}' | tail -n +2 > CHANGELOG_PREVIEW.md || echo "No changes" > CHANGELOG_PREVIEW.md
+          else
+            echo "No tags found, generating full changelog"
+            npx conventional-changelog -p angular -r 0 -u | tail -n +2 > CHANGELOG_PREVIEW.md || echo "No changes" > CHANGELOG_PREVIEW.md
+          fi
 
-          # If the file is empty or just has headers, generate from git log
+          # If the file is empty or just has headers, generate from git log since last tag
           if [ ! -s CHANGELOG_PREVIEW.md ] || [ "$(wc -l < CHANGELOG_PREVIEW.md)" -lt 3 ]; then
-            echo "### Commits" > CHANGELOG_PREVIEW.md
+            echo "### Recent Changes" > CHANGELOG_PREVIEW.md
             echo "" >> CHANGELOG_PREVIEW.md
-            git log origin/main..HEAD --pretty=format:"* %s (%h)" >> CHANGELOG_PREVIEW.md
+            if [[ -n "$LATEST_TAG" ]]; then
+              git log ${LATEST_TAG}..HEAD --pretty=format:"* %s (%h)" >> CHANGELOG_PREVIEW.md
+            else
+              git log origin/main..HEAD --pretty=format:"* %s (%h)" >> CHANGELOG_PREVIEW.md
+            fi
           fi
 
       - name: Generate Release Preview
