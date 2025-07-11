@@ -106,60 +106,28 @@ jobs:
           echo "🔒 Creating production release after approvals"
           echo "📦 This will create version, tag, changelog, and publish to npm"
 
-          # Copy stable release config that includes verified-git-commit for changelog commits
+          # Copy stable release config that includes git plugin for changelog commits
           cp .github/release-configs/releaserc.stable.json .releaserc.json
-          # Run semantic-release - this will create changelog, commit it, tag, and publish
-          npx semantic-release
 
-      - name: Create PR to merge changelog to main
-        if: steps.release.outputs.new_release_published == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const branchName = '${{ github.ref_name }}';
-            const version = '${{ steps.release.outputs.new_release_version }}';
+          # Run semantic-release and capture outputs
+          npx semantic-release > release-output.txt 2>&1
+          EXIT_CODE=$?
 
-            try {
-              // Create PR to merge changelog back to main
-              const pr = await github.rest.pulls.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: `chore: merge changelog for v${version} to main`,
-                head: branchName,
-                base: 'main',
-                body: `## 📝 Changelog Update for v${version}
+          # Check if release was created - semantic-release exits 0 on success
+          if [ $EXIT_CODE -eq 0 ] && (grep -q "Published release" release-output.txt || grep -q "next release version is" release-output.txt || grep -q "Created tag" release-output.txt); then
+            echo "new_release_published=true" >> $GITHUB_OUTPUT
+            # Extract version from various possible output formats
+            VERSION=$(grep -oE "[0-9]+\.[0-9]+\.[0-9]+" release-output.txt | head -1 || echo "unknown")
+            echo "new_release_version=$VERSION" >> $GITHUB_OUTPUT
+            echo "new_release_git_tag=v$VERSION" >> $GITHUB_OUTPUT
+            echo "✅ Release created: v$VERSION"
+          else
+            echo "new_release_published=false" >> $GITHUB_OUTPUT
+            echo "❌ No release created (exit code: $EXIT_CODE)"
+          fi
 
-            This PR merges the updated CHANGELOG.md from the stable release back to the main branch.
-
-            ### What's included:
-            - ✅ Updated CHANGELOG.md with release notes for v${version}
-            - ✅ No other changes - changelog only
-
-            ### Release Details:
-            - **Version**: v${version}
-            - **Release Branch**: ${branchName}
-            - **Release Type**: Stable Release
-
-            This PR is automatically created after a successful stable release to ensure the main branch stays up-to-date with release history.
-
-            🤖 Generated automatically by semantic-release workflow.`,
-                draft: false
-              });
-              
-              console.log(`✅ Created PR #${pr.data.number}: ${pr.data.html_url}`);
-              
-              // Add labels to the PR
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr.data.number,
-                labels: ['changelog', 'automated', 'release']
-              });
-              
-            } catch (error) {
-              console.error('❌ Failed to create PR:', error.message);
-              // Don't fail the workflow if PR creation fails
-            }
+          # Show the output for debugging
+          cat release-output.txt
 
       - name: Create PR to merge changelog to main
         if: steps.release.outputs.new_release_published == 'true'
@@ -218,7 +186,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.merge-and-release.outputs.tag_name }}
+          ref: ${{ needs.publish-release.outputs.tag_name }}
 
       - name: Audit Release
         run: |
