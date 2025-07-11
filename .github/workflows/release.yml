@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - release
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -19,8 +20,21 @@ jobs:
       - name: Validate workflow trigger
         run: |
           echo "🔒 Security Check: Validating workflow trigger"
-          if [[ "${{ github.event_name }}" != "push" ]] || [[ "${{ github.ref }}" != "refs/heads/release" ]]; then
-            echo "❌ Only pushes to release branch allowed"
+          ALLOWED_EVENTS="push workflow_dispatch"
+          if [[ ! "$ALLOWED_EVENTS" =~ "${{ github.event_name }}" ]]; then
+            echo "❌ Unauthorized workflow trigger: ${{ github.event_name }}"
+            exit 1
+          fi
+
+          # For push events, ensure it's to release branch
+          if [[ "${{ github.event_name }}" == "push" ]] && [[ "${{ github.ref }}" != "refs/heads/release" ]]; then
+            echo "❌ Push events only allowed to release branch"
+            exit 1
+          fi
+
+          # For manual dispatch, ensure we're on release branch
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]] && [[ "${{ github.ref }}" != "refs/heads/release" ]]; then
+            echo "❌ Manual dispatch only allowed from release branch"
             exit 1
           fi
 
