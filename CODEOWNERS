@@ -7,17 +7,16 @@
 
 # GitHub Actions workflows require special review
 # These files control our CI/CD and release processes
-.github/workflows/* @wormholelabs-xyz/wormhole-labs
+.github/workflows/* @wormholelabs-xyz/frontend-release-team 
 
 # Package files that affect versioning and dependencies
 package.json @wormholelabs-xyz/wormhole-labs
 pnpm-lock.yaml @wormholelabs-xyz/wormhole-labs
 
 # Security-sensitive configurations
-CODEOWNERS @wormholelabs-xyz/wormhole-labs
-.npmrc @wormholelabs-xyz/wormhole-labs
-.npmignore @wormholelabs-xyz/wormhole-labs
+CODEOWNERS @wormholelabs-xyz/frontend-release-team 
+.npmrc @wormholelabs-xyz/frontend-release-team 
+.npmignore @wormholelabs-xyz/frontend-release-team 
 
-# Release configuration
-config/release-please.config.json @wormholelabs-xyz/wormhole-labs
-CHANGELOG.md @wormholelabs-xyz/wormhole-labs
+# Release configuration  
+.releaserc.json @wormholelabs-xyz/frontend-release-team 
