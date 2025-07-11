@@ -1,10 +1,10 @@
-name: Create Release Branch & RC
+name: Create RC Branch & Release Candidate
 
 on:
   workflow_dispatch:
     inputs:
       target_version:
-        description: "Target release version (e.g., 1.2.0)"
+        description: "Target RC version (e.g., 1.2.0)"
         required: true
         type: string
       source_tag:
@@ -60,7 +60,7 @@ jobs:
           echo "tags=$JSON_TAGS" >> $GITHUB_OUTPUT
 
   select-tag-and-create-branch:
-    name: Create Release Branch from Selected Tag
+    name: Create RC Branch from Selected Tag
     runs-on: ubuntu-latest
     needs: [fetch-development-releases]
     if: always() && !failure()
@@ -84,7 +84,7 @@ jobs:
           fi
 
           echo "target_version=$TARGET_VERSION" >> $GITHUB_OUTPUT
-          echo "release_branch=release/$TARGET_VERSION" >> $GITHUB_OUTPUT
+          echo "rc_branch=rc/$TARGET_VERSION" >> $GITHUB_OUTPUT
 
           if [[ "$SELECTION_MODE" == "Use custom tag/commit above" && -n "$CUSTOM_TAG" ]]; then
             # Use custom tag/commit
@@ -111,17 +111,17 @@ jobs:
             echo "source_ref=$LATEST_DEV" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create Release Branch
+      - name: Create RC Branch
         id: create-branch
         run: |
           SOURCE_REF="${{ steps.determine-source.outputs.source_ref }}"
-          RELEASE_BRANCH="${{ steps.determine-source.outputs.release_branch }}"
+          RC_BRANCH="${{ steps.determine-source.outputs.rc_branch }}"
 
-          echo "🌿 Creating release branch: $RELEASE_BRANCH from $SOURCE_REF"
+          echo "🌿 Creating RC branch: $RC_BRANCH from $SOURCE_REF"
 
           # Check if branch already exists
-          if git ls-remote --heads origin "$RELEASE_BRANCH" | grep -q "$RELEASE_BRANCH"; then
-            echo "❌ Release branch $RELEASE_BRANCH already exists"
+          if git ls-remote --heads origin "$RC_BRANCH" | grep -q "$RC_BRANCH"; then
+            echo "❌ RC branch $RC_BRANCH already exists"
             echo "🔍 You can either:"
             echo "   - Delete the existing branch first"
             echo "   - Use a different target version"
@@ -129,32 +129,32 @@ jobs:
           fi
 
           # Create and push the branch
-          git checkout -b "$RELEASE_BRANCH" "$SOURCE_REF"
-          git push origin "$RELEASE_BRANCH"
+          git checkout -b "$RC_BRANCH" "$SOURCE_REF"
+          git push origin "$RC_BRANCH"
 
-          echo "✅ Successfully created and pushed $RELEASE_BRANCH"
+          echo "✅ Successfully created and pushed $RC_BRANCH"
           echo "branch_created=true" >> $GITHUB_OUTPUT
 
       - name: Create Summary
         run: |
           SOURCE_REF="${{ steps.determine-source.outputs.source_ref }}"
-          RELEASE_BRANCH="${{ steps.determine-source.outputs.release_branch }}"
+          RC_BRANCH="${{ steps.determine-source.outputs.rc_branch }}"
           TARGET_VERSION="${{ steps.determine-source.outputs.target_version }}"
 
           cat >> $GITHUB_STEP_SUMMARY << EOF
-          ## 🎉 Release Branch Created Successfully
+          ## 🎉 RC Branch Created Successfully
 
           ### Branch Details
-          - **Release Branch**: \`$RELEASE_BRANCH\`
+          - **RC Branch**: \`$RC_BRANCH\`
           - **Source Reference**: \`$SOURCE_REF\`
           - **Target Version**: \`$TARGET_VERSION\`
 
           ### Next Steps
-          1. ✅ Release branch has been created and pushed
+          1. ✅ RC branch has been created and pushed
           2. 🚀 **Release Candidate workflow will automatically trigger**
           3. 📦 RC will be published to npm with \`@rc\` tag
           4. 🧪 Test the RC: \`npm install @wormhole-labs/dev-config@rc\`
-          5. 🔄 When ready, merge release branch to main for final release
+          5. 🔄 When ready, trigger final release from RC branch
 
           ### Automatic Actions
           - The **Production Release** workflow will trigger automatically when the branch is pushed
@@ -163,5 +163,5 @@ jobs:
           - RC will be available at: \`@wormhole-labs/dev-config@rc\`
 
           ### Manual Actions Required Later
-          - **2 developer approvals** will be required when merging to main for final stable release
+          - **2 developer approvals** will be required for final stable release
           EOF

@@ -207,7 +207,7 @@ git push origin main
 
 1. ✅ Creates `v1.1.0` stable release
 2. ✅ Publishes to npm with `latest` tag
-3. ✅ Updates CHANGELOG.md on release branch
+3. ✅ Updates CHANGELOG.md on RC branch
 4. ✅ Creates provenance attestation
 5. ✅ Comprehensive security audit
 
@@ -215,8 +215,7 @@ git push origin main
 
 **Automatic after stable release**:
 
-1. ✅ **PR created automatically** to merge changelog from release branch to
-   main
+1. ✅ **PR created automatically** to merge changelog from RC branch to main
 2. ✅ **PR title**: `chore: merge changelog for v1.1.0 to main`
 3. ✅ **PR labels**: `changelog`, `automated`, `release`
 4. ✅ **Contains only**: Updated CHANGELOG.md with release notes
@@ -252,9 +251,9 @@ npm install @wormhole-labs/dev-config
 git branch -d feat/awesome-new-feature
 git push origin --delete feat/awesome-new-feature
 
-# Delete release branch (after changelog PR is merged)
-git branch -d release/1.1.0
-git push origin --delete release/1.1.0
+# Delete RC branch (after changelog PR is merged)
+git branch -d rc/1.1.0
+git push origin --delete rc/1.1.0
 ```
 
 ---
@@ -266,10 +265,10 @@ git push origin --delete release/1.1.0
 #### Step 1: Identify Source Release Branch
 
 ```bash
-# Find the release branch for the version needing the hotfix
-# For example, if fixing v1.1.0, use release/1.1.0
-git checkout release/1.1.0
-git pull origin release/1.1.0
+# Find the RC branch for the version needing the hotfix
+# For example, if fixing v1.1.0, use rc/1.1.0
+git checkout rc/1.1.0
+git pull origin rc/1.1.0
 ```
 
 #### Step 2: Apply Hotfix with Conventional Commit
@@ -287,7 +286,7 @@ BREAKING CHANGE: Auth module now requires additional validation parameter"
 #### Step 3: Push to Release Branch
 
 ```bash
-git push origin release/1.1.0
+git push origin rc/1.1.0
 ```
 
 #### Step 4: Automatic RC Creation
@@ -315,22 +314,22 @@ git push origin release/1.1.0
 ### **Required Manual Steps**
 
 1. **PR Creation**: Create and merge PRs (normal development)
-2. **RC Creation**: GitHub UI → Actions → "Create Release Branch & RC" → Run
-   workflow
+2. **RC Creation**: GitHub UI → Actions → "Create RC Branch & Release Candidate"
+   → Run workflow
 3. **Final Release Triggering**: GitHub UI → Actions → "Production Release" →
    Set type to "final"
 4. **Environment Approvals**: 2 different people must approve **final releases
    only**
 5. **Changelog PR Review**: Review and merge the automatic changelog PR to main
 6. **Release Verification**: Test packages after release
-7. **Branch Cleanup**: Delete feature/release branches
+7. **Branch Cleanup**: Delete feature/RC branches
 
 ### **Approval Requirements**
 
 - **Pre-releases**: ❌ No approvals (automatic)
 - **Release Candidates**: ❌ No approvals (automatic after branch creation)
 - **Final Stable Releases**: ✅ 2 approvals required
-- **Hotfix RCs**: ❌ No approvals (automatic after push to release branch)
+- **Hotfix RCs**: ❌ No approvals (automatic after push to RC branch)
 - **Final Hotfix Releases**: ✅ 2 approvals required
 
 ### **Security Gates**
@@ -380,8 +379,8 @@ npm view @wormhole-labs/dev-config
 ✅ **NPM provenance** - Cryptographic proof of package integrity  
 ✅ **Zero manual commands** - Everything automated after approvals  
 ✅ **Conventional commits** - Structured commit messages drive versioning  
-✅ **Hotfix capability** - Emergency fixes via existing release branches with
-same security controls  
+✅ **Hotfix capability** - Emergency fixes via existing RC branches with same
+security controls  
 ✅ **Future monorepo ready** - Can extend to multiple packages later
 
 This system provides **maximum security** with **minimal friction** for
