@@ -156,11 +156,14 @@ jobs:
           # Add prerelease suffix for development builds
           if [[ -n "$NEXT_VERSION" ]]; then
             # Find existing development tags for this version from our cached tag list
-            EXISTING_DEV_TAGS=$(echo "$ALL_TAGS" | grep "^v\?${NEXT_VERSION}-development\.")
+            echo "Looking for existing tags matching: ^v?${NEXT_VERSION}-development\\."
+            EXISTING_DEV_TAGS=$(echo "$ALL_TAGS" | grep "^v\?${NEXT_VERSION}-development\." || true)
+            echo "Found development tags: '$EXISTING_DEV_TAGS'"
             
             if [[ -n "$EXISTING_DEV_TAGS" ]]; then
               # Get the highest development number
-              HIGHEST_DEV=$(echo "$EXISTING_DEV_TAGS" | tail -1 | grep -oP 'development\.\K[0-9]+')
+              HIGHEST_DEV=$(echo "$EXISTING_DEV_TAGS" | tail -1 | sed 's/.*development\.\([0-9]\+\).*/\1/' || echo "0")
+              echo "Highest development number: $HIGHEST_DEV"
               NEXT_DEV_NUM=$((HIGHEST_DEV + 1))
               echo "Found existing development tags, next will be: development.$NEXT_DEV_NUM"
             else
