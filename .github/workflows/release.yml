@@ -113,21 +113,18 @@ jobs:
           npx semantic-release > release-output.txt 2>&1
           EXIT_CODE=$?
 
-          # Check if release was created - semantic-release exits 0 on success
-          if [ $EXIT_CODE -eq 0 ] && (grep -q "Published release" release-output.txt || grep -q "next release version is" release-output.txt || grep -q "Created tag" release-output.txt); then
-            echo "new_release_published=true" >> $GITHUB_OUTPUT
-            # Extract version from various possible output formats
-            VERSION=$(grep -oE "[0-9]+\.[0-9]+\.[0-9]+" release-output.txt | head -1 || echo "unknown")
-            echo "new_release_version=$VERSION" >> $GITHUB_OUTPUT
-            echo "new_release_git_tag=v$VERSION" >> $GITHUB_OUTPUT
-            echo "✅ Release created: v$VERSION"
-          else
-            echo "new_release_published=false" >> $GITHUB_OUTPUT
-            echo "❌ No release created (exit code: $EXIT_CODE)"
-          fi
-
-          # Show the output for debugging
+          echo "Semantic-release exit code: $EXIT_CODE"
+          echo "Semantic-release output:"
           cat release-output.txt
+
+          # Always set the output for debugging
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "new_release_published=true" >> "$GITHUB_OUTPUT"
+            echo "Setting new_release_published=true"
+          else
+            echo "new_release_published=false" >> "$GITHUB_OUTPUT"
+            echo "Setting new_release_published=false"
+          fi
 
       - name: Create PR to merge changelog to main
         if: steps.release.outputs.new_release_published == 'true'
