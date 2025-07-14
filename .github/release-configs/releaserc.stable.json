@@ -21,12 +21,6 @@
       }
     ],
     [
-      "@semantic-release-extras/verified-git-commit",
-      {
-        "assets": ["CHANGELOG.md"]
-      }
-    ],
-    [
       "@semantic-release/github",
       {
         "assets": [
