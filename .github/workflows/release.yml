@@ -155,25 +155,22 @@ jobs:
             
             echo "Attempting to commit changelog to $BRANCH_NAME branch..."
             
-            # Try to get current file SHA from release branch
-            if SHA=$(gh api repos/:owner/:repo/contents/CHANGELOG.md --jq .sha --field ref="$BRANCH_NAME" 2>/dev/null); then
-              # File exists on release branch, update it
-              echo "File exists on $BRANCH_NAME, updating..."
-              gh api --method PUT repos/:owner/:repo/contents/CHANGELOG.md \
-                --field message="$COMMIT_MESSAGE" \
-                --field content="$CONTENT" \
-                --field branch="$BRANCH_NAME" \
-                --field sha="$SHA"
-              echo "✅ Updated CHANGELOG.md on ${BRANCH_NAME} branch via API (GPG signed)"
-            else
-              # File doesn't exist on release branch, create it
-              echo "File doesn't exist on $BRANCH_NAME, creating..."
-              gh api --method PUT repos/:owner/:repo/contents/CHANGELOG.md \
-                --field message="$COMMIT_MESSAGE" \
-                --field content="$CONTENT" \
-                --field branch="$BRANCH_NAME"
-              echo "✅ Created CHANGELOG.md on ${BRANCH_NAME} branch via API (GPG signed)"
-            fi
+            # Get the SHA of the existing file using git
+            echo "Getting SHA for existing CHANGELOG.md on $BRANCH_NAME branch..."
+            
+            # Use git to get the file's SHA from the branch (same as verified-git-commit plugin)
+            SHA=$(git rev-parse $BRANCH_NAME:CHANGELOG.md)
+            
+            echo "Found existing file SHA: $SHA"
+            
+            # Update the existing file with the new content using GitHub API
+            gh api --method PUT repos/:owner/:repo/contents/CHANGELOG.md \
+              --field message="$COMMIT_MESSAGE" \
+              --field content="$CONTENT" \
+              --field branch="$BRANCH_NAME" \
+              --field sha="$SHA"
+            
+            echo "✅ Updated CHANGELOG.md on ${BRANCH_NAME} branch via API (GPG signed)"
           else
             echo "⚠️ No CHANGELOG.md found to commit"
           fi
