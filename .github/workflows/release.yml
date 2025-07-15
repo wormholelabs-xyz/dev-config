@@ -177,52 +177,34 @@ jobs:
 
       - name: Create PR to merge changelog to main
         if: steps.release.outputs.new_release_published == 'true'
-        uses: actions/github-script@v7
+        uses: peter-evans/create-pull-request@v6
         with:
-          script: |
-            const version = '${{ steps.release.outputs.new_release_version }}';
-
-            try {
-              // Create PR to merge changelog back to main
-              const pr = await github.rest.pulls.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: `chore(release): merge changelog for v${version} to main`,
-                head: 'release',
-                base: 'main',
-                body: `## 📝 Changelog Update for v${version}
+          token: ${{ secrets.RELEASE_PAT }}
+          branch: release
+          base: main
+          title: "chore(release): merge changelog for v${{ steps.release.outputs.new_release_version }} to main"
+          body: |
+            ## 📝 Changelog Update for v${{ steps.release.outputs.new_release_version }}
 
             This PR merges the updated CHANGELOG.md from the stable release back to the main branch.
 
             ### What's included:
-            - ✅ Updated CHANGELOG.md with release notes for v${version}
+            - ✅ Updated CHANGELOG.md with release notes for v${{ steps.release.outputs.new_release_version }}
             - ✅ No other changes - changelog only
 
             ### Release Details:
-            - **Version**: v${version}
+            - **Version**: v${{ steps.release.outputs.new_release_version }}
             - **Release Branch**: release
             - **Release Type**: Stable Release
 
             This PR is automatically created after a successful stable release to ensure the main branch stays up-to-date with release history.
 
-            🤖 Generated automatically by semantic-release workflow.`,
-                draft: false
-              });
-              
-              console.log(`✅ Created PR #${pr.data.number}: ${pr.data.html_url}`);
-              
-              // Add labels to the PR
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr.data.number,
-                labels: ['changelog', 'automated', 'release']
-              });
-              
-            } catch (error) {
-              console.error('❌ Failed to create PR:', error.message);
-              // Don't fail the workflow if PR creation fails
-            }
+            🤖 Generated automatically by semantic-release workflow.
+          labels: |
+            changelog
+            automated
+            release
+          delete-branch: false
 
   security-audit:
     name: Post-Release Security Audit
