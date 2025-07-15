@@ -1,3 +1,10 @@
+## [1.1.4](https://github.com/wormholelabs-xyz/dev-config/compare/v1.1.3...v1.1.4) (2025-07-15)
+
+
+### Bug Fixes
+
+* use git rev-parse to get file SHA for changelog commits ([83d6902](https://github.com/wormholelabs-xyz/dev-config/commit/83d69028d29b20b9fab3e26a068b94919ab0ce21))
+
 ## [1.1.1](https://github.com/wormholelabs-xyz/dev-config/compare/v1.1.0...v1.1.1) (2025-07-14)
 
 
@@ -45,4 +52,3 @@
 - Add comprehensive audit logging and NPM provenance attestation
 
 This establishes a complete automated release pipeline with proper version management.
-
