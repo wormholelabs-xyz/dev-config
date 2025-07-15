@@ -177,34 +177,39 @@ jobs:
 
       - name: Create PR to merge changelog to main
         if: steps.release.outputs.new_release_published == 'true'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.RELEASE_PAT }}
-          branch: release
-          base: main
-          title: "chore(release): merge changelog for v${{ steps.release.outputs.new_release_version }} to main"
-          body: |
-            ## 📝 Changelog Update for v${{ steps.release.outputs.new_release_version }}
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+        run: |
+          VERSION="${{ steps.release.outputs.new_release_version }}"
 
-            This PR merges the updated CHANGELOG.md from the stable release back to the main branch.
+          echo "📝 Creating PR to merge changelog for v${VERSION} to main..."
 
-            ### What's included:
-            - ✅ Updated CHANGELOG.md with release notes for v${{ steps.release.outputs.new_release_version }}
-            - ✅ No other changes - changelog only
+          # Create PR using gh CLI with the PAT
+          gh pr create \
+            --base main \
+            --head release \
+            --title "chore(release): merge changelog for v${VERSION} to main" \
+            --body "## 📝 Changelog Update for v${VERSION}
 
-            ### Release Details:
-            - **Version**: v${{ steps.release.outputs.new_release_version }}
-            - **Release Branch**: release
-            - **Release Type**: Stable Release
+          This PR merges the updated CHANGELOG.md from the stable release back to the main branch.
 
-            This PR is automatically created after a successful stable release to ensure the main branch stays up-to-date with release history.
+          ### What's included:
+          - ✅ Updated CHANGELOG.md with release notes for v${VERSION}
+          - ✅ No other changes - changelog only
 
-            🤖 Generated automatically by semantic-release workflow.
-          labels: |
-            changelog
-            automated
-            release
-          delete-branch: false
+          ### Release Details:
+          - **Version**: v${VERSION}
+          - **Release Branch**: release
+          - **Release Type**: Stable Release
+
+          This PR is automatically created after a successful stable release to ensure the main branch stays up-to-date with release history.
+
+          🤖 Generated automatically by semantic-release workflow." \
+            --label "changelog" \
+            --label "automated" \
+            --label "release" \
+          && echo "✅ PR created successfully" \
+          || echo "⚠️ Failed to create PR - it may already exist"
 
   security-audit:
     name: Post-Release Security Audit
