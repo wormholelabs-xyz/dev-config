@@ -1,3 +1,10 @@
+## [1.1.6](https://github.com/wormholelabs-xyz/dev-config/compare/v1.1.5...v1.1.6) (2025-07-17)
+
+
+### Bug Fixes
+
+* use gh CLI with PAT for changelog PR creation ([88bb72b](https://github.com/wormholelabs-xyz/dev-config/commit/88bb72b6c475d6c3e3ae4032731a9509f505e9d8))
+
 ## [1.1.4](https://github.com/wormholelabs-xyz/dev-config/compare/v1.1.3...v1.1.4) (2025-07-15)
 
 
