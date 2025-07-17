@@ -106,9 +106,6 @@ jobs:
           echo "🔒 Creating production release after approvals"
           echo "📦 This will create version, tag, changelog, and publish to npm"
 
-          # Copy stable release config (no git plugin - we'll commit manually)
-          cp .github/release-configs/releaserc.stable.json .releaserc.json
-
           # Run semantic-release and capture outputs
           npx semantic-release > release-output.txt 2>&1
           EXIT_CODE=$?
