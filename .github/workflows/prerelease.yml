@@ -3,6 +3,7 @@ name: Pre-release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -18,7 +19,7 @@ jobs:
       - name: Validate workflow trigger
         run: |
           echo "🔒 Security Check: Validating workflow trigger"
-          ALLOWED_EVENTS="push"
+          ALLOWED_EVENTS="push workflow_dispatch"
           if [[ ! "$ALLOWED_EVENTS" =~ "${{ github.event_name }}" ]]; then
             echo "❌ Unauthorized workflow trigger: ${{ github.event_name }}"
             exit 1
@@ -26,10 +27,21 @@ jobs:
 
       - name: Validate branch
         run: |
-          if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
-            echo "❌ Pre-releases only allowed from main branch"
+          # For push events, must be main branch
+          if [[ "${{ github.event_name }}" == "push" ]] && [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
+            echo "❌ Push events only allowed from main branch"
             exit 1
           fi
+
+          # For workflow_dispatch, only allow hotfix/* branches
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ ! "${{ github.ref }}" =~ ^refs/heads/hotfix/.+ ]]; then
+              echo "❌ Manual dispatch only allowed from hotfix/* branches"
+              exit 1
+            fi
+          fi
+
+          echo "✅ Branch validation passed for: ${{ github.ref }}"
 
       - name: Create audit log
         run: |
@@ -82,6 +94,13 @@ jobs:
 
       - name: Audit signatures
         run: npm audit signatures
+
+      - name: Setup hotfix prerelease config
+        if: ${{ github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/hotfix/') }}
+        run: |
+          echo "📝 Setting up prerelease configuration for hotfix branch"
+          cp .github/configs/releaserc.prerelease.json .releaserc.json
+          echo "✅ Prerelease config applied for hotfix branch"
 
       - name: Create Pre-release
         env:
