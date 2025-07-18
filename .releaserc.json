@@ -1,5 +1,9 @@
 {
-  "branches": ["release", { "name": "main", "prerelease": "development" }],
+  "branches": [
+    "release",
+    "hotfix/*",
+    { "name": "main", "prerelease": "development" }
+  ],
   "plugins": [
     "semantic-release-unsquash",
     [
