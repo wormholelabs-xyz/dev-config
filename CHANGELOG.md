@@ -1,3 +1,12 @@
+# [1.2.0](https://github.com/wormholelabs-xyz/dev-config/compare/v1.1.6...v1.2.0) (2025-07-18)
+
+
+### Features
+
+* add "semantic-release-unsquash" ([#24](https://github.com/wormholelabs-xyz/dev-config/issues/24)) ([31de99b](https://github.com/wormholelabs-xyz/dev-config/commit/31de99bd1f827298b9b8cef8ff966c8694f7aa95))
+* add hotfix prerelease support ([56ce1ca](https://github.com/wormholelabs-xyz/dev-config/commit/56ce1ca9628be242ef11482c12e2ab333b464803))
+* add hotfix support to CD automation ([56ce1ca](https://github.com/wormholelabs-xyz/dev-config/commit/56ce1ca9628be242ef11482c12e2ab333b464803))
+
 ## [1.1.6](https://github.com/wormholelabs-xyz/dev-config/compare/v1.1.5...v1.1.6) (2025-07-17)
 
 
