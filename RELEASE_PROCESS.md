@@ -1,8 +1,22 @@
-# Release Walkthrough: From PR to Production
+# Release Process: From PR to Production
 
 This document provides a step-by-step walkthrough of the complete release
 process using semantic-release, covering all manual steps, approvals, and
 automation triggers.
+
+## 🚀 **Quick Summary**
+
+The simplified release flow:
+
+**PR → Merge → Pre-release (`-development.x`) → Prepare Release → Publish
+Release → Changelog PR → Merge PR**
+
+1. Create and merge PR to main
+2. Automatic pre-release with `-development.x` suffix
+3. Manually trigger "Prepare Release" workflow
+4. Automatic "Publish Release" workflow (requires 2 approvals)
+5. Automatic changelog PR creation
+6. Manually merge changelog PR to main
 
 ## 🏗️ **System Overview**
 
@@ -10,10 +24,8 @@ automation triggers.
 
 - **Main branch** → Automatic pre-releases (`1.0.0-development.1`,
   `1.0.0-development.2`, etc.)
-- **Release branches** → Release candidates (`1.0.0-rc.1`, `1.0.0-rc.2`, etc.)
-- **Production** → Stable releases (`1.0.0`, `1.1.0`, etc.) with 2+ approvals
-- **Hotfixes** → Emergency fixes on existing release branches (`1.0.1-rc.1`,
-  then `1.0.1`) with 2+ approvals
+- **Release branch** → Stable releases (`1.0.0`, `1.1.0`, etc.) with 2+
+  approvals
 
 ### **Security & Approvals**
 
@@ -24,7 +36,7 @@ automation triggers.
 
 ---
 
-## 📋 **Complete Happy Path Walkthrough**
+## 📋 **Complete Release Process Walkthrough**
 
 ### **Phase 1: Development & PR Creation**
 
@@ -55,23 +67,25 @@ git push origin feat/awesome-new-feature
 # Create PR via GitHub UI targeting 'main' branch
 ```
 
-#### Step 4: Review Semantic Release Preview
+#### Step 4: Review Release Preview
 
-- **Automatic**: GitHub Action runs `Semantic Release Preview`
-- **Result**: Bot comment shows what release would be created
+- **Automatic**: CI workflow runs and adds release preview comment
+- **Result**: Bot comment shows what version would be created
 - **Example Output**:
 
   ```
-  🤖 Semantic Release Preview
+  ## 📦 Release Preview
 
-  ✅ Release Would Be Created
-  Target Branch: main
-  Current Version: 0.0.0-development
-  Next Version: 1.1.0
-  Release Type: Pre-release (1.1.0-development.1)
-  NPM Tag: development
+  🚀 **Version that would be released:** `1.1.0-development.1`
 
-  ℹ️ This will create an automatic pre-release when merged.
+  📊 **Bump type:** minor
+
+  ### 📝 Changes
+
+  * feat: add awesome new feature that does amazing things (abc123)
+
+  ---
+  *This preview is automatically updated on each commit. The actual release will happen when this PR is merged to main.*
   ```
 
 ### **Phase 2: Pre-release (Automatic)**
@@ -96,7 +110,7 @@ git push origin main
   3. ✅ Build package
   4. ✅ Run `npm audit signatures`
   5. ✅ Create pre-release with semantic-release
-  6. ✅ Publish to npm with `development` tag
+  6. ✅ Publish to npm with `development` tag (e.g., `1.1.0-development.1`)
   7. ✅ Create GitHub release (pre-release)
   8. ✅ Generate audit log
 
@@ -118,81 +132,45 @@ npm install @wormhole-labs/dev-config@development
 - ✅ Verify green provenance badge on npm
 - ✅ Review security audit logs
 
-### **Phase 3: Release Candidate Creation (Automated)**
+### **Phase 3: Prepare Release**
 
-#### Step 8: Create Release Branch & RC (Automated)
+#### Step 8: Prepare Release Branch
 
-**GitHub UI - One-Click Process**:
-
-1. Go to **Actions** tab
-2. Select **"Create Release Branch & RC"** workflow
-3. Click **"Run workflow"**
-4. Fill in the form:
-   - **Target Version**: `1.1.0` (semantic version)
-   - **Source Selection**: Choose "Fetch latest 10 development releases"
-   - **Custom Tag**: (leave empty to use latest development release)
-5. Click **"Run workflow"**
-
-#### Step 9: Automatic RC Creation
-
-**Fully Automated Process**:
-
-1. ✅ **Validates** target version format
-2. ✅ **Fetches** latest development releases (shows last 10)
-3. ✅ **Creates** `release/1.1.0` branch from selected development release
-4. ✅ **Pushes** branch to GitHub
-5. ✅ **Triggers** Production Release workflow automatically
-6. ✅ **Creates** Release Candidate `1.1.0-rc.1` (**No approvals needed**)
-7. ✅ **Publishes** to npm with `@rc` tag
-8. ✅ **Creates** GitHub release
-9. ✅ **Generates** CHANGELOG.md entry
-10. ✅ **Creates** provenance attestation
-
-#### Step 10: RC Available for Testing
-
-**Immediate Results**:
-
-- ✅ **Release Candidate** `1.1.0-rc.1` published to npm
-- ✅ **Install command**: `npm install @wormhole-labs/dev-config@rc`
-- ✅ **GitHub Release** created with release notes
-- ✅ **Branch** `release/1.1.0` ready for final release
-
-### **Phase 4: Production Release**
-
-#### Step 14: Test Release Candidate
-
-**Manual Steps**:
-
-```bash
-# Test RC thoroughly
-npm install @wormhole-labs/dev-config@rc
-# Run your test suites
-# Verify in staging environments
-```
-
-#### Step 15: Merge Release Branch to Main
-
-```bash
-git checkout main
-git merge release/1.1.0
-git push origin main
-```
-
-#### Step 16: Trigger Final Stable Release
-
-**Manual GitHub Action Trigger**:
+**GitHub UI - Manual Trigger**:
 
 1. Go to **Actions** tab
-2. Select **"Production Release"** workflow
+2. Select **"Prepare Release"** workflow
 3. Click **"Run workflow"**
 4. Fill in the form:
-   - **Branch**: `release/1.1.0`
-   - **Release Type**: `final`
+   - **Commit SHA**: (optional - leave empty to use latest from main)
 5. Click **"Run workflow"**
 
-#### Step 17: Final Release Environment Protection
+#### Step 9: Release Branch Created
 
-**2-Approval Process for Stable Release Only**:
+**Automated Process**:
+
+1. ✅ **Validates** workflow trigger
+2. ✅ **Determines** source commit (specified SHA or latest main)
+3. ✅ **Creates/Updates** `release` branch from source commit
+4. ✅ **Force pushes** to update release branch
+5. ✅ **Triggers** Publish Release workflow automatically
+
+**Note**: This workflow has no environment protection to avoid blocking. The
+actual release protection happens in the next phase.
+
+### **Phase 4: Publish Release (Production)**
+
+#### Step 10: Automatic Workflow Trigger
+
+**Automatic Process**:
+
+- When the release branch is updated (from Phase 3), the Publish Release
+  workflow automatically triggers
+- The workflow runs on push to `release` branch
+
+#### Step 11: Environment Protection (2 Approvals Required)
+
+**Manual Approval Process**:
 
 1. **Workflow pauses** at "production" environment
 2. **Email notification** sent to required reviewers
@@ -201,24 +179,27 @@ git push origin main
    and deploy"
 5. **Workflow continues** after 2nd approval
 
-#### Step 18: Stable Release Published
+#### Step 12: Stable Release Published
 
 **Automatic after 2 approvals**:
 
-1. ✅ Creates `v1.1.0` stable release
-2. ✅ Publishes to npm with `latest` tag
-3. ✅ Updates CHANGELOG.md on RC branch
-4. ✅ Creates provenance attestation
-5. ✅ Comprehensive security audit
+1. ✅ Runs semantic-release to determine version
+2. ✅ Creates stable release (e.g., `v1.1.0`)
+3. ✅ Publishes to npm with `latest` tag
+4. ✅ Updates CHANGELOG.md on release branch via GitHub API
+5. ✅ Creates provenance attestation
+6. ✅ Comprehensive security audit
 
-#### Step 19: Automatic Changelog PR Creation
+#### Step 13: Automatic Changelog PR Creation
 
 **Automatic after stable release**:
 
-1. ✅ **PR created automatically** to merge changelog from RC branch to main
-2. ✅ **PR title**: `chore: merge changelog for v1.1.0 to main`
+1. ✅ **PR created automatically** using PAT to merge changelog from release
+   branch to main
+2. ✅ **PR title**: `chore(release): merge changelog for v1.1.0 to main`
 3. ✅ **PR labels**: `changelog`, `automated`, `release`
 4. ✅ **Contains only**: Updated CHANGELOG.md with release notes
+5. ✅ **CI checks run automatically** due to PAT usage
 
 **Manual Action Required**:
 
@@ -227,7 +208,7 @@ git push origin main
 
 ### **Phase 5: Verification & Cleanup**
 
-#### Step 20: Verify Production Release
+#### Step 14: Verify Production Release
 
 **Manual Steps**:
 
@@ -244,16 +225,14 @@ npm install @wormhole-labs/dev-config
 # - ✅ Provenance badge visible on npm
 ```
 
-#### Step 21: Cleanup
+#### Step 15: Cleanup
 
 ```bash
 # Delete feature branch
 git branch -d feat/awesome-new-feature
 git push origin --delete feat/awesome-new-feature
 
-# Delete RC branch (after changelog PR is merged)
-git branch -d rc/1.1.0
-git push origin --delete rc/1.1.0
+# The release branch is reused for future releases, so don't delete it
 ```
 
 ---
@@ -262,13 +241,13 @@ git push origin --delete rc/1.1.0
 
 ### Emergency Hotfix Walkthrough
 
-#### Step 1: Identify Source Release Branch
+#### Step 1: Create Hotfix Branch from Release
 
 ```bash
-# Find the RC branch for the version needing the hotfix
-# For example, if fixing v1.1.0, use rc/1.1.0
-git checkout rc/1.1.0
-git pull origin rc/1.1.0
+# Create a hotfix branch from the release branch
+git checkout release
+git pull origin release
+git checkout -b hotfix/critical-fix
 ```
 
 #### Step 2: Apply Hotfix with Conventional Commit
@@ -278,34 +257,32 @@ git pull origin rc/1.1.0
 git add .
 git commit -m "fix: resolve critical security vulnerability in auth module
 
-This fixes CVE-2024-XXXX by properly validating input parameters.
-
-BREAKING CHANGE: Auth module now requires additional validation parameter"
+This fixes #XXXX by properly validating input parameters."
 ```
 
-#### Step 3: Push to Release Branch
+#### Step 3: Create PR to Release Branch
 
 ```bash
-git push origin rc/1.1.0
+# Push hotfix branch
+git push origin hotfix/critical-fix
+
+# Create PR via GitHub UI targeting 'release' branch
 ```
 
-#### Step 4: Automatic RC Creation
+#### Step 4: Merge Hotfix
 
-**Automatic Process**:
+After PR approval and merge to release branch:
 
-1. ✅ **Push triggers** automatic RC creation
-2. ✅ **Creates** `1.1.1-rc.1` (or `2.0.0-rc.1` if breaking)
-3. ✅ **Publishes** to npm with `@rc` tag
-4. ✅ **No approvals needed** for RC
+1. ✅ **Publish Release workflow triggers automatically**
+2. ✅ **Requires 2 approvals** (production environment protection)
+3. ✅ **Creates hotfix version** (e.g., `1.1.1`)
+4. ✅ **Publishes** to npm with `latest` tag
+5. ✅ **Creates changelog PR** to merge back to main
 
-#### Step 5: Test and Final Release
+#### Step 5: Merge Changes Back to Main
 
-**Manual Process**:
-
-1. **Test the RC**: `npm install @wormhole-labs/dev-config@rc`
-2. **Trigger final release**: Actions → Production Release → Set type to "final"
-3. **2-approval process**: Same as regular final releases
-4. **Stable hotfix published**: `1.1.1` with `@latest` tag
+1. **Review and merge** the automated changelog PR
+2. **Cherry-pick** the hotfix commit to main if needed
 
 ---
 
@@ -314,23 +291,18 @@ git push origin rc/1.1.0
 ### **Required Manual Steps**
 
 1. **PR Creation**: Create and merge PRs (normal development)
-2. **RC Creation**: GitHub UI → Actions → "Create RC Branch & Release Candidate"
-   → Run workflow
-3. **Final Release Triggering**: GitHub UI → Actions → "Production Release" →
-   Set type to "final"
-4. **Environment Approvals**: 2 different people must approve **final releases
-   only**
-5. **Changelog PR Review**: Review and merge the automatic changelog PR to main
-6. **Release Verification**: Test packages after release
-7. **Branch Cleanup**: Delete feature/RC branches
+2. **Prepare Release**: GitHub UI → Actions → "Prepare Release" → Run workflow
+3. **Environment Approvals**: 2 different people must approve production
+   releases
+4. **Changelog PR Review**: Review and merge the automatic changelog PR to main
+5. **Release Verification**: Test packages after release
+6. **Branch Cleanup**: Delete feature branches (keep release branch)
 
 ### **Approval Requirements**
 
-- **Pre-releases**: ❌ No approvals (automatic)
-- **Release Candidates**: ❌ No approvals (automatic after branch creation)
-- **Final Stable Releases**: ✅ 2 approvals required
-- **Hotfix RCs**: ❌ No approvals (automatic after push to RC branch)
-- **Final Hotfix Releases**: ✅ 2 approvals required
+- **Pre-releases**: ❌ No approvals (automatic on merge to main)
+- **Production Releases**: ✅ 2 approvals required
+- **Hotfix Releases**: ✅ 2 approvals required (same as production)
 
 ### **Security Gates**
 
@@ -352,7 +324,7 @@ git push origin rc/1.1.0
 npm view @wormhole-labs/dev-config
 # ✅ Version updated
 # ✅ Provenance badge visible
-# ✅ Correct tag (development/rc/latest)
+# ✅ Correct tag (development/latest)
 ```
 
 #### GitHub
@@ -368,20 +340,3 @@ npm view @wormhole-labs/dev-config
 - ✅ Audit logs captured
 - ✅ Only authorized approvers used
 - ✅ No security scan failures
-
----
-
-## 🎯 **Key Benefits Achieved**
-
-✅ **Automatic pre-releases** - Every commit to main becomes testable  
-✅ **Security approval gates** - 2+ people must approve production releases  
-✅ **Full audit trail** - Every release action logged and traceable  
-✅ **NPM provenance** - Cryptographic proof of package integrity  
-✅ **Zero manual commands** - Everything automated after approvals  
-✅ **Conventional commits** - Structured commit messages drive versioning  
-✅ **Hotfix capability** - Emergency fixes via existing RC branches with same
-security controls  
-✅ **Future monorepo ready** - Can extend to multiple packages later
-
-This system provides **maximum security** with **minimal friction** for
-developers while maintaining **full traceability** of all release activities.
